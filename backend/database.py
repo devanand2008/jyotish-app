@@ -11,12 +11,20 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Always store astro.db in the same directory as this file (backend/)
-# This prevents creating duplicate DB files when uvicorn runs from the project root.
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_DB_PATH = os.path.join(_HERE, "astro.db")
+# ── Database path ─────────────────────────────────────────────────────────────
+# On Render: use the mounted persistent disk so data survives redeploys.
+# Locally:   store astro.db next to this file (backend/).
+_RENDER_DATA_DIR = "/opt/render/project/src/data"
+
+if os.path.isdir(_RENDER_DATA_DIR):
+    # Running on Render — use persistent disk
+    _DB_PATH = os.path.join(_RENDER_DATA_DIR, "astro.db")
+else:
+    # Local development
+    _HERE = os.path.dirname(os.path.abspath(__file__))
+    _DB_PATH = os.path.join(_HERE, "astro.db")
+
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{_DB_PATH}"
-# For PostgreSQL: "postgresql://user:password@postgresserver/db"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}

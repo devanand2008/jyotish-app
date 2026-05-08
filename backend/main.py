@@ -60,8 +60,12 @@ FRONTEND_DIR = os.path.normpath(FRONTEND_DIR)
 if os.path.isdir(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
-# Mount uploads directory
-UPLOADS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+# Mount uploads directory — use Render persistent disk when available
+_RENDER_DATA_DIR = "/opt/render/project/src/data"
+if os.path.isdir(_RENDER_DATA_DIR):
+    UPLOADS_DIR = os.path.join(_RENDER_DATA_DIR, "uploads")
+else:
+    UPLOADS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 os.makedirs(os.path.join(UPLOADS_DIR, "ads"), exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
