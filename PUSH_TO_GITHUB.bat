@@ -44,7 +44,7 @@ echo.
 :setup_repo
 :: ── STEP 2: Configure Git identity ─────────────────
 echo  Configuring Git identity...
-git config --global user.email "devanand.s2008@gmail.com"
+git config --global user.email "devanand2008@gmail.com"
 git config --global user.name "Devanand"
 git config --global init.defaultBranch main
 echo [OK] Git identity configured.
@@ -79,7 +79,7 @@ echo  ┌───────────────────────�
 echo  │  ACTION REQUIRED                                    │
 echo  │                                                     │
 echo  │  1. Sign in to GitHub:  https://github.com/login   │
-echo  │     Email: devanand.s2008@gmail.com                 │
+echo  │     Email: devanand2008@gmail.com                   │
 echo  │                                                     │
 echo  │  2. Create a NEW repository:  https://github.com/new│
 echo  │     - Name: jyotish-app                             │

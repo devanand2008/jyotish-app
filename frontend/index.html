@@ -2489,6 +2489,7 @@
         Backend status: checking...
       </div>
       <button class="btn-p" onclick="nav('s-form')">ஜாதகம் பார்க்க / View My Chart</button>
+      <button class="btn-p" onclick="location.href=window.jyotishPageUrl('compatibility.html')" style="background:linear-gradient(135deg,var(--teal),var(--acc));">Compatibility Report</button>
       <div class="ad-slot" id="ad-slot-top"></div>
       <div
         style="margin-top:10px;font-size:11px;color:var(--mut);text-align:center;line-height:2.3;font-family:'Noto Serif Tamil',serif;">
@@ -4654,6 +4655,9 @@ Write a detailed Tamil horoscope reading (6-8 sentences) covering personality, c
     let socket = null, peerConnection = null, localStream = null, targetSocketId = null;
     const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
     function videoSignalingUrl() {
+      if (window.resolveJyotishVideoBase) {
+        return window.resolveJyotishVideoBase();
+      }
       try {
         const u = new URL(API_BASE);
         u.port = '5000';
@@ -4963,5 +4967,4 @@ Write a detailed Tamil horoscope reading (6-8 sentences) covering personality, c
       <div id="ad-content" style="display:flex; justify-content:center; align-items:center;"></div>
   </div>
 </body>
-
 </html>

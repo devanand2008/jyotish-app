@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Compatibility Report - JYOTISH 3.0</title>
+<meta name="description" content="Tamil Vedic astrology compatibility report using real horoscope calculations.">
+<script src="api-base.js"></script>
+<script src="ads.js" defer></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#08060f;--surf:#16132a;--surf2:#1e1a35;--bdr:#322c58;--tx:#ede8ff;--mut:#8b85ac;--gold:#c8a84b;--gold2:#e8c96a;--teal:#1aada0;--red:#e04b4a}
+body{min-height:100vh;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+.top{position:sticky;top:0;z-index:5;background:rgba(16,14,30,.95);border-bottom:1px solid var(--bdr);backdrop-filter:blur(10px)}
+.top-inner{max-width:1120px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font-weight:800;letter-spacing:3px;color:var(--gold)}
+.link{color:var(--gold2);text-decoration:none;border:1px solid rgba(200,168,75,.35);border-radius:8px;padding:8px 12px;font-size:13px}
+.page{max-width:1120px;margin:0 auto;padding:22px 16px 56px}
+h1{font-size:clamp(24px,4vw,38px);color:var(--gold);margin-bottom:6px}
+.sub{color:var(--mut);font-size:14px;line-height:1.7;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.card{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:18px}
+.card h2{font-size:17px;color:var(--gold2);margin-bottom:14px}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{font-size:11px;color:var(--mut);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em}
+input,select{width:100%;background:var(--surf2);border:1px solid var(--bdr);color:var(--tx);border-radius:9px;padding:10px 11px;font:inherit;font-size:14px;outline:none}
+input:focus,select:focus{border-color:var(--gold)}
+.wide{grid-column:1/-1}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}
+button{border:0;border-radius:10px;padding:12px 18px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--gold),#7c5fcc);color:#fff}
+button.secondary{background:var(--surf2);border:1px solid var(--bdr);color:var(--tx)}
+.result{display:none;margin-top:16px}
+.score{display:grid;grid-template-columns:160px 1fr;gap:16px;align-items:center}
+.meter{width:150px;height:150px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--teal) calc(var(--p)*1%),#2a2550 0);position:relative}
+.meter:before{content:"";position:absolute;inset:12px;border-radius:50%;background:var(--surf)}
+.meter span{position:relative;font-size:32px;font-weight:900;color:var(--gold2)}
+.verdict{font-size:24px;font-weight:900;color:var(--gold2);margin-bottom:8px}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.fact{background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;padding:10px}
+.fact b{display:block;color:var(--gold2);font-size:12px;margin-bottom:3px}
+.fact span{color:var(--mut);font-size:12px}
+.notes{margin-top:14px;display:grid;gap:8px}
+.note{background:rgba(26,173,160,.08);border:1px solid rgba(26,173,160,.25);border-radius:9px;padding:10px;color:#c8fff8;font-size:13px;line-height:1.6}
+.err{color:var(--red);font-size:13px;margin-top:10px}
+.ad-slot{display:none;margin:18px 0}
+.ad-slot.show{display:block}
+.ad-wrap{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:10px;text-align:center;position:relative}
+.ad-label{position:absolute;top:6px;left:8px;font-size:9px;color:var(--mut);background:rgba(0,0,0,.45);border-radius:99px;padding:2px 7px}
+.ad-media{max-width:100%;max-height:220px;object-fit:contain;border-radius:8px}
+@media(max-width:760px){.grid,.score{grid-template-columns:1fr}.fields,.facts{grid-template-columns:1fr}.meter{margin:0 auto}.top-inner{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="top"><div class="top-inner"><div class="brand">JYOTISH 3.0</div><div><a class="link" href="user-dashboard.html">Dashboard</a> <a class="link" href="index.html">Horoscope</a></div></div></div>
+<main class="page">
+  <h1>Compatibility Report</h1>
+  <p class="sub">Generate a practical Vedic compatibility report from two real horoscope calculations. For marriage decisions, combine this with full porutham and astrologer review.</p>
+  <div class="ad-slot" id="ad-slot-top"></div>
+  <div class="grid">
+    <section class="card">
+      <h2>Person 1</h2>
+      <div class="fields" id="p1"></div>
+    </section>
+    <section class="card">
+      <h2>Person 2</h2>
+      <div class="fields" id="p2"></div>
+    </section>
+  </div>
+  <div class="actions">
+    <button onclick="runCompatibility()">Generate Compatibility</button>
+    <button class="secondary" onclick="fillSample()">Sample Data</button>
+  </div>
+  <div class="err" id="err"></div>
+  <div class="ad-slot" id="ad-slot-mid"></div>
+  <section class="card result" id="result">
+    <div class="score">
+      <div class="meter" id="meter" style="--p:0"><span id="score">0</span></div>
+      <div>
+        <div class="verdict" id="verdict">Result</div>
+        <div class="sub" id="summary"></div>
+      </div>
+    </div>
+    <div class="facts" id="facts"></div>
+    <div class="notes" id="notes"></div>
+  </section>
+  <div class="ad-slot" id="ad-slot-bottom"></div>
+</main>
+<script>
+const API = window.resolveJyotishApiBase();
+const token = localStorage.getItem('auth_token');
+if (!token) location.href = window.jyotishPageUrl('login.html');
+
+function fields(prefix) {
+  document.getElementById(prefix).innerHTML = `
+    <div><label>Name</label><input id="${prefix}-name" autocomplete="name"></div>
+    <div><label>Gender</label><select id="${prefix}-gender"><option value="Male">Male</option><option value="Female">Female</option></select></div>
+    <div><label>Date of birth</label><input id="${prefix}-dob" type="date" min="1900-01-01" max="2100-12-31"></div>
+    <div><label>Birth time</label><input id="${prefix}-time" type="time"></div>
+    <div class="wide"><label>Place</label><input id="${prefix}-place" placeholder="City, State"></div>
+    <div><label>Latitude</label><input id="${prefix}-lat" type="number" step="0.0001" value="11.6643"></div>
+    <div><label>Longitude</label><input id="${prefix}-lon" type="number" step="0.0001" value="78.1460"></div>`;
+}
+fields('p1'); fields('p2');
+
+function payload(prefix) {
+  const dob = document.getElementById(prefix+'-dob').value;
+  const time = document.getElementById(prefix+'-time').value;
+  if (!document.getElementById(prefix+'-name').value || !dob || !time) throw new Error('Name, birth date and birth time are required for both people.');
+  const [year, month, day] = dob.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  return {
+    name: document.getElementById(prefix+'-name').value.trim(),
+    gender: document.getElementById(prefix+'-gender').value,
+    year, month, day, hour, minute,
+    place: document.getElementById(prefix+'-place').value.trim(),
+    lat: parseFloat(document.getElementById(prefix+'-lat').value) || 11.6643,
+    lon: parseFloat(document.getElementById(prefix+'-lon').value) || 78.1460,
+    timezone: 5.5
+  };
+}
+
+async function runCompatibility() {
+  const err = document.getElementById('err');
+  err.textContent = '';
+  try {
+    const body = { person1: payload('p1'), person2: payload('p2') };
+    const res = await fetch(`${API}/api/compatibility`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Compatibility API failed.');
+    renderResult(data);
+  } catch(e) { err.textContent = e.message; }
+}
+
+function renderResult(data) {
+  const c = data.compatibility || {};
+  document.getElementById('result').style.display = 'block';
+  document.getElementById('meter').style.setProperty('--p', c.score || 0);
+  document.getElementById('score').textContent = c.score || 0;
+  document.getElementById('verdict').textContent = c.verdict || 'Result';
+  document.getElementById('summary').textContent = `${data.person1.name} and ${data.person2.name} compatibility based on rasi, nakshatra and lagna signals.`;
+  const f = c.factors || {};
+  document.getElementById('facts').innerHTML = [
+    ['Person 1 Rasi', f.person1_rasi],
+    ['Person 2 Rasi', f.person2_rasi],
+    ['Person 1 Nakshatra', f.person1_nakshatra],
+    ['Person 2 Nakshatra', f.person2_nakshatra],
+    ['Person 1 Lagna', f.person1_lagna],
+    ['Person 2 Lagna', f.person2_lagna]
+  ].map(x => `<div class="fact"><b>${x[0]}</b><span>${x[1] || '-'}</span></div>`).join('');
+  document.getElementById('notes').innerHTML = (c.notes || []).concat(data.guidance || []).map(n => `<div class="note">${n}</div>`).join('');
+  if (window.renderJyotishAds) window.renderJyotishAds();
+}
+
+function fillSample() {
+  const data = {
+    'p1-name':'Arun','p1-dob':'1995-06-15','p1-time':'10:30','p1-place':'Salem','p1-lat':'11.6643','p1-lon':'78.1460',
+    'p2-name':'Meena','p2-dob':'1998-09-20','p2-time':'18:15','p2-place':'Chennai','p2-lat':'13.0827','p2-lon':'80.2707'
+  };
+  Object.keys(data).forEach(id => document.getElementById(id).value = data[id]);
+}
+</script>
+</body>
+</html>

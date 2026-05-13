@@ -25,6 +25,7 @@ echo  Project Root  : %ROOT%
 echo  Backend Path  : %BACKEND%
 echo  Python (venv) : %VENV_PY%
 if defined LAN_IP echo  Phone URL     : http://%LAN_IP%:8080/login.html
+if defined LAN_IP echo  Note          : Google mobile login needs Render HTTPS or an HTTPS tunnel.
 echo.
 
 :: ---- STEP 1: Locate Python ----------------------------------
@@ -104,9 +105,10 @@ echo  ^|        JYOTISH APP 3.0 IS RUNNING!               ^|
 echo  ^|                                                   ^|
 echo  ^|  App URL       :  http://localhost:8080           ^|
 if defined LAN_IP echo  ^|  Phone URL     :  http://%LAN_IP%:8080/login.html ^|
+echo  ^|  Mobile Google :  Use Render HTTPS, not private IP     ^|
 echo  ^|  API Docs      :  http://localhost:8080/docs      ^|
 echo  ^|  Health Check  :  http://localhost:8080/health    ^|
-echo  ^|                                                   ^|
+echo  ^|                                                   ^|  
 echo  ^|  Press any key to STOP all services...           ^|
 echo  +====================================================+
 echo.

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Signing in - JYOTISH</title>
+<style>
+  *{box-sizing:border-box}
+  body{
+    margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:#070512;color:#ede8ff;font-family:Arial,Helvetica,sans-serif;padding:20px
+  }
+  .box{
+    width:100%;max-width:420px;border:1px solid rgba(200,168,75,.28);
+    background:#13102b;border-radius:16px;padding:28px;text-align:center;
+    box-shadow:0 28px 80px rgba(0,0,0,.45)
+  }
+  h1{font-size:24px;margin:0 0 10px;color:#f0d878}
+  p{line-height:1.6;color:#b9b0d0;margin:0 0 16px}
+  .spin{
+    width:30px;height:30px;margin:0 auto 18px;border-radius:50%;
+    border:3px solid rgba(240,216,120,.2);border-top-color:#f0d878;
+    animation:s .8s linear infinite
+  }
+  @keyframes s{to{transform:rotate(360deg)}}
+  a{color:#1aada0}
+</style>
+<script src="api-base.js"></script>
+</head>
+<body>
+<main class="box">
+  <div class="spin" id="spin"></div>
+  <h1 id="title">Signing you in...</h1>
+  <p id="msg">Please wait while Google login is completed.</p>
+  <p id="link" style="display:none"><a href="login.html">Back to login</a></p>
+</main>
+<script>
+(async function () {
+  const api = window.resolveJyotishApiBase();
+  const pageUrl = window.jyotishPageUrl || function (path) { return '/' + path.replace(/^\/+/, ''); };
+  const title = document.getElementById('title');
+  const msg = document.getElementById('msg');
+  const spin = document.getElementById('spin');
+  const link = document.getElementById('link');
+
+  function fail(text) {
+    spin.style.display = 'none';
+    title.textContent = 'Login failed';
+    msg.textContent = text;
+    link.style.display = 'block';
+  }
+
+  function redirectByRole(user) {
+    localStorage.setItem('user_info', JSON.stringify(user));
+    localStorage.setItem('user_data', JSON.stringify(user));
+    if (user.role === 'Admin') location.href = pageUrl('admin.html');
+    else if (user.role === 'Astrologer') {
+      location.href = pageUrl(user.status === 'Approved' ? 'astro-dashboard.html' : 'pending.html');
+    } else {
+      location.href = pageUrl('user-dashboard.html');
+    }
+  }
+
+  const hash = window.location.hash ? window.location.hash.substring(1) : '';
+  const params = new URLSearchParams(hash);
+  const oauthError = params.get('error');
+  const idToken = params.get('id_token');
+
+  history.replaceState(null, '', window.location.pathname);
+
+  if (oauthError) {
+    fail(oauthError + ': ' + (params.get('error_description') || 'Google cancelled the login.'));
+    return;
+  }
+  if (!idToken) {
+    fail('Google did not return a login token. Please try again from the login page.');
+    return;
+  }
+
+  const role = sessionStorage.getItem('login_role') || params.get('state') || 'User';
+  sessionStorage.removeItem('login_role');
+  sessionStorage.removeItem('oauth_nonce');
+
+  try {
+    const res = await fetch(api + '/api/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: idToken, role_requested: role })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Google login failed');
+    localStorage.setItem('auth_token', data.access_token);
+    redirectByRole(data.user);
+  } catch (err) {
+    fail(err.message || 'Network error while completing login.');
+  }
+})();
+</script>
+</body>
+</html>

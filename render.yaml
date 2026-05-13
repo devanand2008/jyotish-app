@@ -5,12 +5,16 @@ services:
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    plan: free
+    plan: starter
     envVars:
       - key: SECRET_KEY
         generateValue: true
       - key: GOOGLE_CLIENT_ID
         value: 1055510399803-bv8vphrhlam8cn5uljii5cs8ghubcuvl.apps.googleusercontent.com
+      - key: ADMIN_EMAIL
+        value: devanand2008@gmail.com
+      - key: ALLOWED_ORIGINS
+        value: "*"
       - key: PYTHON_VERSION
         value: 3.11.0
     healthCheckPath: /health
@@ -18,3 +22,12 @@ services:
       name: astro-data
       mountPath: /opt/render/project/src/data
       sizeGB: 1
+
+  - type: web
+    name: jyotish-video-signaling
+    runtime: node
+    rootDir: backend-video
+    buildCommand: npm ci
+    startCommand: npm start
+    plan: starter
+    healthCheckPath: /health

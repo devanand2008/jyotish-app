@@ -248,21 +248,32 @@ function isMobile() {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 }
 
+function isPrivateNetworkHost(hostname) {
+  return /^(10|127)\./.test(hostname)
+    || /^192\.168\./.test(hostname)
+    || /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname)
+    || hostname === 'localhost';
+}
+
+function mobileCallbackUri() {
+  return new URL(window.jyotishPageUrl('google-mobile-callback.html'), window.location.href).href;
+}
+
 function triggerGoogleLogin() {
   if (isMobile()) {
-    // On mobile: redirect-based OAuth with id_token implicit flow
+    if (isPrivateNetworkHost(window.location.hostname)) {
+      showErr('Mobile Google login cannot use private IP URLs like ' + window.location.origin + '. Open the Render HTTPS URL or use an HTTPS tunnel such as ngrok/Cloudflare Tunnel.');
+      return;
+    }
+
+    // Use one stable callback URL so Google redirect_uri matches on every phone link.
     const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
     sessionStorage.setItem('login_role', selectedRole);
     sessionStorage.setItem('oauth_nonce', nonce);
-    
-    // The redirect URI must EXACTLY match the Authorized redirect URIs in Google Cloud Console
-    // Usually it's your full domain + path (e.g., https://yourdomain.com/login.html)
-    // We clean up any trailing slashes just in case.
-    let redirectUri = window.location.origin + window.location.pathname.replace(/\/+$/, '');
-    
+
     const params = new URLSearchParams({
       client_id:     GOOGLE_CLIENT_ID,
-      redirect_uri:  redirectUri,
+      redirect_uri:  mobileCallbackUri(),
       response_type: 'id_token',
       scope:         'openid email profile',
       nonce:         nonce,
@@ -435,7 +446,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
   <!-- Footer -->
   <div class="foot">
-    🛡 Admin Access: devanand.s2008@gmail.com மட்டும் · JWT Secured<br>
+    🛡 Admin Access: devanand2008@gmail.com மட்டும் · JWT Secured<br>
     🔒 Chat-ல் Phone / WhatsApp share blocked
   </div>
 

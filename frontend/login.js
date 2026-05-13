@@ -16,8 +16,9 @@ const pageUrl = window.jyotishPageUrl || ((path) => window.location.protocol ===
 let selectedRole = 'User';
 
 function redirectByRole(user) {
-  // Store ONLY in user_info — user_data is reserved for horoscope record arrays
+  // Store in both keys — dashboards read user_data with user_info fallback
   localStorage.setItem('user_info', JSON.stringify(user));
+  localStorage.setItem('user_data', JSON.stringify(user));
   const { role, status } = user;
   if (role === 'Admin') return location.href = pageUrl('admin.html');
   if (role === 'Astrologer') {
@@ -32,7 +33,7 @@ window.onload = () => {
   const token = localStorage.getItem('auth_token');
   const ud = localStorage.getItem('user_info');
   if (token && ud) {
-    try { redirectByRole(JSON.parse(ud)); } catch(e) {}
+    try { redirectByRole(JSON.parse(ud)); } catch (e) { }
   }
 };
 
@@ -67,7 +68,7 @@ async function handleGoogleLogin(response) {
     } else {
       if (errEl) { errEl.textContent = data.detail || 'Authentication failed.'; errEl.style.display = 'block'; }
     }
-  } catch(e) {
+  } catch (e) {
     if (errEl) { errEl.textContent = 'Network error. Backend running? ' + LOGIN_API; errEl.style.display = 'block'; }
   }
 }
@@ -88,7 +89,7 @@ async function developerBypass() {
     } else {
       if (errEl) { errEl.textContent = data.detail || 'Bypass failed.'; errEl.style.display = 'block'; }
     }
-  } catch(e) {
+  } catch (e) {
     if (errEl) { errEl.textContent = 'Network error. Make sure backend is running at ' + LOGIN_API; errEl.style.display = 'block'; }
   }
 }

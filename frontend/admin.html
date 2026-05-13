@@ -13,9 +13,9 @@
   try { ud = JSON.parse(localStorage.getItem('user_data') || localStorage.getItem('user_info') || '{}'); } catch(e) { ud = {}; }
   if (!token) { window.location.href = window.jyotishPageUrl('login.html'); return; }
   // Only the designated admin email can access this panel
-  var ADMIN_EMAIL = 'devanand.s2008@gmail.com';
+  var ADMIN_EMAIL = 'devanand2008@gmail.com';
   if (ud.role !== 'Admin' || ud.email !== ADMIN_EMAIL) {
-    alert('⛔ இந்த பக்கம் Admin மட்டும் அணுகலாம்! (devanand.s2008@gmail.com)');
+    alert('⛔ இந்த பக்கம் Admin மட்டும் அணுகலாம்! (devanand2008@gmail.com)');
     window.location.href = window.jyotishPageUrl('index.html');
     return;
   }
@@ -83,6 +83,18 @@ input:checked+.slider:before{transform:translateX(20px)}
 .server-ad-actions button{flex:1;background:transparent;border:1px solid var(--bdr);border-radius:8px;color:var(--tx);font-size:10px;padding:6px;cursor:pointer}
 .server-ad-actions button:hover{border-color:var(--gold);color:var(--gold)}
 .server-ad-actions .danger{border-color:rgba(224,75,74,.5);color:var(--red)}
+.ad-advanced-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.ad-advanced-grid input,.ad-advanced-grid select,.ops-input,.ops-textarea,.ops-select{
+  width:100%;background:var(--surf2);border:1px solid var(--bdr);border-radius:9px;
+  color:var(--tx);font-size:11px;padding:9px 10px;font-family:inherit;outline:none
+}
+.ad-advanced-grid input:focus,.ad-advanced-grid select:focus,.ops-input:focus,.ops-textarea:focus,.ops-select:focus{border-color:var(--gold)}
+.ad-advanced-grid .wide{grid-column:1/-1}
+.ops-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.ops-list{display:grid;gap:8px}
+.ops-row{background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;font-size:11px;line-height:1.6}
+.ops-textarea{min-height:92px;resize:vertical}
+@media(max-width:640px){.ad-advanced-grid,.ops-grid{grid-template-columns:1fr}}
 @media(max-width:640px){
   .top-bar{padding:12px;gap:8px}
   .logo{font-size:18px;letter-spacing:2px}
@@ -353,6 +365,28 @@ const LS_KEY = 'jyotish_ads';
 let pendingFiles = {};
 let serverAdsCache = [];
 
+function injectAdAdvancedFields() {
+  ['web','pdf','banner','video'].forEach(type => {
+    const preview = document.getElementById('preview-' + type);
+    if (!preview || document.getElementById('ad-title-' + type)) return;
+    preview.insertAdjacentHTML('afterend', `
+      <div class="ad-advanced-grid">
+        <input id="ad-title-${type}" class="wide" placeholder="Ad title / campaign name">
+        <select id="ad-placement-${type}">
+          <option value="all">All placements</option>
+          <option value="top">Top banner</option>
+          <option value="mid">Report middle</option>
+          <option value="bottom">Report bottom</option>
+          <option value="pj">Panchangam</option>
+        </select>
+        <input id="ad-pages-${type}" placeholder="Target pages: all,index,panchangam">
+        <input id="ad-click-${type}" class="wide" placeholder="Click URL (optional)">
+        <input id="ad-start-${type}" type="datetime-local" title="Start schedule">
+        <input id="ad-end-${type}" type="datetime-local" title="End schedule">
+      </div>`);
+  });
+}
+
 /* ── Stars background ── */
 (function(){
   const c = document.getElementById('stars');
@@ -477,6 +511,12 @@ async function uploadAd(type) {
   formData.append('token', token);
   formData.append('ad_type', type);
   formData.append('file', file);
+  formData.append('title', document.getElementById('ad-title-'+type)?.value || '');
+  formData.append('placement', document.getElementById('ad-placement-'+type)?.value || 'all');
+  formData.append('target_pages', document.getElementById('ad-pages-'+type)?.value || 'all');
+  formData.append('click_url', document.getElementById('ad-click-'+type)?.value || '');
+  formData.append('starts_at', document.getElementById('ad-start-'+type)?.value || '');
+  formData.append('ends_at', document.getElementById('ad-end-'+type)?.value || '');
 
   let serverAd = null;
   try {
@@ -612,7 +652,9 @@ async function refreshStatus() {
   });
 
   try {
-    const res = await fetch(`${API}/api/ads`);
+    const token = localStorage.getItem('auth_token') || '';
+    let res = await fetch(`${API}/api/admin/ads?token=${encodeURIComponent(token)}`);
+    if (!res.ok) res = await fetch(`${API}/api/ads`);
     if (res.ok) {
       const srv = await res.json();
       serverAdsCache = Array.isArray(srv.ads) ? srv.ads : [];
@@ -622,8 +664,9 @@ async function refreshStatus() {
           <div class="server-ad-card">
             <div class="server-ad-head">
               <div>
-                <div class="server-ad-title">${ad.original_name || ad.filename || ad.path}</div>
-                <div class="server-ad-meta">${(ad.type || '').toUpperCase()} · non-skippable · ${fmtBytes(ad.size)} · ${ad.enabled === false ? 'Paused' : 'Active'}</div>
+                <div class="server-ad-title">${ad.title || ad.original_name || ad.filename || ad.path}</div>
+                <div class="server-ad-meta">${(ad.type || '').toUpperCase()} · non-skippable · ${fmtBytes(ad.size)} · ${ad.enabled === false ? 'Paused' : 'Active'} · ${ad.impressions || 0} views · ${ad.clicks || 0} clicks</div>
+                <div class="server-ad-meta">${ad.starts_at ? 'Starts ' + new Date(ad.starts_at).toLocaleString() : 'Starts now'} · ${ad.ends_at ? 'Ends ' + new Date(ad.ends_at).toLocaleString() : 'No end date'}</div>
               </div>
             </div>
             <div class="server-ad-actions">
@@ -799,7 +842,7 @@ async function exportExcel() {
 }
 
 /* ── Init ── */
-window.onload = function() { loadState(); loadUsers(); loadStats(); };
+window.onload = function() { injectAdAdvancedFields(); loadState(); loadUsers(); loadStats(); if (typeof loadAdminOps === 'function') loadAdminOps(); };
 // Auto-refresh pending astrologers every 8 seconds
 setInterval(loadUsers, 8000);
 setInterval(loadStats, 15000);
@@ -827,6 +870,172 @@ setInterval(loadStats, 15000);
     <div id="user-list"></div>
   </div>
 </div>
+<div class="page" style="margin-top:0;padding-top:0;">
+  <div class="user-mgmt-card" id="advanced-ops-section">
+    <div class="card-title">Advanced Admin Dashboard</div>
+    <div class="card-sub">Analytics, stored reports, astrology content, settings and deployment readiness.</div>
+
+    <div class="ops-grid" id="ops-analytics">
+      <div class="stat-box"><div class="stat-num" id="ops-users">...</div><div class="stat-lbl">Users</div></div>
+      <div class="stat-box"><div class="stat-num" id="ops-reports">...</div><div class="stat-lbl">Reports</div></div>
+      <div class="stat-box"><div class="stat-num" id="ops-views">...</div><div class="stat-lbl">Ad Views</div></div>
+      <div class="stat-box"><div class="stat-num" id="ops-clicks">...</div><div class="stat-lbl">Ad Clicks</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-title">Content Management</div>
+      <div class="card-sub">Create astrology content for reports, SEO pages and app copy.</div>
+      <div style="display:grid;gap:8px;">
+        <input class="ops-input" id="content-title" placeholder="Content title">
+        <select class="ops-select" id="content-type">
+          <option value="article">Article</option>
+          <option value="prediction">Prediction</option>
+          <option value="remedy">Remedy</option>
+          <option value="seo">SEO</option>
+        </select>
+        <textarea class="ops-textarea" id="content-body" placeholder="Write content here"></textarea>
+        <div class="btn-row">
+          <button class="btn btn-save" onclick="saveContentItem()">Save Content</button>
+          <button class="btn" onclick="loadContentItems()">Refresh</button>
+        </div>
+      </div>
+      <div class="ops-list" id="content-list" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-title">Report Generation</div>
+      <div class="card-sub">Recent horoscope and compatibility reports stored in the main database.</div>
+      <div class="btn-row">
+        <button class="btn btn-save" onclick="generatePlatformReport()">Generate Platform Report</button>
+        <button class="btn" onclick="loadReports()">Refresh Reports</button>
+      </div>
+      <div class="ops-list" id="report-list" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-title">Settings</div>
+      <div class="card-sub">Production settings stored in the backend database.</div>
+      <div style="display:grid;gap:8px;">
+        <input class="ops-input" id="set-site-name" placeholder="Site name">
+        <input class="ops-input" id="set-support-email" placeholder="Support email">
+        <input class="ops-input" id="set-seo-title" placeholder="SEO title">
+        <textarea class="ops-textarea" id="set-seo-desc" placeholder="SEO description"></textarea>
+        <button class="btn btn-save" onclick="saveSettings()">Save Settings</button>
+      </div>
+    </div>
+
+    <div class="slot-info">
+      Recommended hosting: deploy this repo as a paid Render web service for one always-on backend that also serves the frontend. Use Vercel/Render Static only if you set the frontend API base to the Render backend URL.
+    </div>
+  </div>
+</div>
+<script>
+async function adminFetch(path, options) {
+  const token = localStorage.getItem('auth_token') || '';
+  const sep = path.includes('?') ? '&' : '?';
+  const url = `${API}${path}${sep}token=${encodeURIComponent(token)}`;
+  return fetch(url, options);
+}
+
+async function loadAdminOps() {
+  await Promise.allSettled([loadAnalytics(), loadContentItems(), loadReports(), loadSettings()]);
+}
+
+async function loadAnalytics() {
+  try {
+    const res = await adminFetch('/api/admin/analytics');
+    if (!res.ok) return;
+    const d = await res.json();
+    document.getElementById('ops-users').textContent = d.totals?.users ?? 0;
+    document.getElementById('ops-reports').textContent = d.totals?.reports ?? 0;
+    document.getElementById('ops-views').textContent = d.ad_performance?.impressions ?? 0;
+    document.getElementById('ops-clicks').textContent = d.ad_performance?.clicks ?? 0;
+  } catch(e) {}
+}
+
+async function loadContentItems() {
+  const el = document.getElementById('content-list');
+  if (!el) return;
+  try {
+    const res = await adminFetch('/api/admin/content');
+    const d = await res.json();
+    const items = d.items || [];
+    el.innerHTML = items.length ? items.map(item => `
+      <div class="ops-row">
+        <strong style="color:var(--gold2)">${item.title}</strong>
+        <span style="color:var(--mut)"> ${item.content_type} / ${item.status}</span>
+        <div>${(item.body || '').slice(0, 160)}</div>
+      </div>`).join('') : '<div class="ops-row">No content yet.</div>';
+  } catch(e) { el.innerHTML = '<div class="ops-row">Content API offline.</div>'; }
+}
+
+async function saveContentItem() {
+  const token = localStorage.getItem('auth_token') || '';
+  const payload = {
+    token,
+    title: document.getElementById('content-title').value.trim(),
+    content_type: document.getElementById('content-type').value,
+    body: document.getElementById('content-body').value.trim(),
+    status: 'published'
+  };
+  if (!payload.title) return alert('Enter a content title.');
+  await fetch(`${API}/api/admin/content`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  document.getElementById('content-title').value = '';
+  document.getElementById('content-body').value = '';
+  loadContentItems();
+}
+
+async function loadReports() {
+  const el = document.getElementById('report-list');
+  if (!el) return;
+  try {
+    const res = await adminFetch('/api/admin/reports?limit=10');
+    const d = await res.json();
+    const reports = d.reports || [];
+    el.innerHTML = reports.length ? reports.map(r => `
+      <div class="ops-row">
+        <strong style="color:var(--gold2)">${r.name || 'Report #' + r.id}</strong>
+        <span style="color:var(--mut)"> ${r.report_type} / ${new Date(r.created_at).toLocaleString()}</span>
+        <div>${r.summary || ''}</div>
+      </div>`).join('') : '<div class="ops-row">No reports generated yet.</div>';
+  } catch(e) { el.innerHTML = '<div class="ops-row">Reports API offline.</div>'; }
+}
+
+async function generatePlatformReport() {
+  const token = localStorage.getItem('auth_token') || '';
+  const res = await fetch(`${API}/api/admin/reports/generate`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({token, report_type:'platform'})
+  });
+  const d = await res.json();
+  alert('Platform report generated: ' + JSON.stringify(d.analytics?.totals || {}, null, 2));
+}
+
+async function loadSettings() {
+  try {
+    const res = await adminFetch('/api/admin/settings');
+    const d = await res.json();
+    const s = d.settings || {};
+    document.getElementById('set-site-name').value = s.site_name || '';
+    document.getElementById('set-support-email').value = s.support_email || '';
+    document.getElementById('set-seo-title').value = s.seo_title || '';
+    document.getElementById('set-seo-desc').value = s.seo_description || '';
+  } catch(e) {}
+}
+
+async function saveSettings() {
+  const token = localStorage.getItem('auth_token') || '';
+  const settings = {
+    site_name: document.getElementById('set-site-name').value,
+    support_email: document.getElementById('set-support-email').value,
+    seo_title: document.getElementById('set-seo-title').value,
+    seo_description: document.getElementById('set-seo-desc').value
+  };
+  await fetch(`${API}/api/admin/settings`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token, settings})});
+  alert('Settings saved.');
+}
+</script>
 <!-- Google Translate Widget -->
 <div id="google_translate_element" style="position:fixed;top:16px;right:16px;z-index:9999;"></div>
 <script>function googleTranslateElementInit(){new google.translate.TranslateElement({pageLanguage:'ta',includedLanguages:'ta,en,hi',layout:google.translate.TranslateElement.InlineLayout.SIMPLE},'google_translate_element');}</script>

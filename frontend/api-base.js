@@ -73,14 +73,44 @@
     return cleanBase(window.location.origin);
   }
 
+  function resolveJyotishVideoBase() {
+    if (window.__JYOTISH_VIDEO_BASE__) {
+      return cleanBase(window.__JYOTISH_VIDEO_BASE__);
+    }
+
+    const stored = storageValue("JYOTISH_VIDEO_SIGNALING_URL");
+    if (stored) return cleanBase(stored);
+
+    const meta = document.querySelector('meta[name="jyotish-video-base"]');
+    if (meta && meta.content) return cleanBase(meta.content);
+
+    if (window.location.protocol === "file:") {
+      return "http://localhost:5000";
+    }
+
+    const host = window.location.hostname;
+    const isLocal = host === "localhost" || host === "127.0.0.1";
+    if (isLocal) {
+      return "http://" + host + ":5000";
+    }
+
+    if (host.endsWith(".onrender.com")) {
+      return "https://jyotish-video-signaling.onrender.com";
+    }
+
+    return cleanBase(window.location.origin);
+  }
+
   function jyotishPageUrl(path) {
     const cleanPath = String(path || "").replace(/^\/+/, "");
     return window.location.protocol === "file:" ? cleanPath : "/" + cleanPath;
   }
 
   window.resolveJyotishApiBase = resolveJyotishApiBase;
+  window.resolveJyotishVideoBase = resolveJyotishVideoBase;
   window.jyotishPageUrl = jyotishPageUrl;
   window.JYOTISH_API_BASE = resolveJyotishApiBase();
+  window.JYOTISH_VIDEO_BASE = resolveJyotishVideoBase();
 
   // Expose a helper to change the backend URL at runtime (useful for GitHub Pages)
   window.setJyotishBackend = function (url) {
@@ -90,6 +120,16 @@
       console.log("[Jyotish] Backend URL set to:", window.JYOTISH_API_BASE);
     } catch (e) {
       console.error("[Jyotish] Could not save backend URL:", e);
+    }
+  };
+
+  window.setJyotishVideoBackend = function (url) {
+    try {
+      localStorage.setItem("JYOTISH_VIDEO_SIGNALING_URL", url.replace(/\/+$/, ""));
+      window.JYOTISH_VIDEO_BASE = url.replace(/\/+$/, "");
+      console.log("[Jyotish] Video signaling URL set to:", window.JYOTISH_VIDEO_BASE);
+    } catch (e) {
+      console.error("[Jyotish] Could not save video URL:", e);
     }
   };
 })();

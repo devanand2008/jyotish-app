@@ -188,8 +188,9 @@ function previewMessage(m){
   return content.slice(0,30);
 }
 
-// Init profile
-if(me.name)document.getElementById('pname').textContent=me.name;
+// Init profile — always show a meaningful name
+const myDisplayName = me.name || me.email || 'ஜோதிடர்';
+document.getElementById('pname').textContent = myDisplayName;
 if(me.picture){const i=document.createElement('img');i.src=me.picture;document.getElementById('pav').innerHTML='';document.getElementById('pav').appendChild(i);}
 
 // Load availability from localStorage
@@ -234,7 +235,8 @@ async function loadContacts(){
   const fallback=[];
   for(let k in localStorage){
     if(k.startsWith(CACHE)){
-      const uid=k.replace(CACHE,'');
+      const uid=k.replace(CACHE,'').trim();
+      if(!uid) continue;
       fallback.push({id:uid,name:'User '+uid,picture:''});
     }
   }
@@ -246,15 +248,17 @@ function renderContacts(){
   const el=document.getElementById('contact-list');
   if(!contacts.length){el.innerHTML='<div style="padding:30px;text-align:center;color:var(--mut)">📭 இன்னும் யாரும் Chat செய்யவில்லை</div>';return;}
   el.innerHTML=contacts.map(c=>{
-    const av=c.picture?`<img src="${c.picture}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`:c.name[0];
+    const displayName = c.name || c.email || ('User ' + c.id);
+    const av=c.picture?`<img src="${c.picture}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`:(displayName[0] || '👤');
     const unread=unreadMap[c.id]?`<div class="unread">${unreadMap[c.id]}</div>`:'';
     const cached=getCachedMessages(c.id);
     const last=cached[cached.length-1];
     const preview=previewMessage(last);
-    return`<div class="contact-item" id="ci-${c.id}" onclick="openChat('${c.id}','${c.name||'User '+c.id}')">
+    // Use data attributes to avoid quote/apostrophe issues in onclick
+    return`<div class="contact-item" id="ci-${c.id}" data-uid="${c.id}" data-uname="${escH(displayName)}" onclick="openChat(this.dataset.uid, this.dataset.uname)">
       <div class="contact-av">${av}</div>
       <div style="flex:1;min-width:0">
-        <div class="contact-name">${c.name||'User '+c.id}</div>
+        <div class="contact-name">${escH(displayName)}</div>
         <div class="contact-preview">${escH(preview)}</div>
       </div>
       <div>${unread}</div>
@@ -264,7 +268,9 @@ function renderContacts(){
 }
 
 function openChat(id,name){
-  peerId=id; peerName=name;
+  peerId=id;
+  // Ensure peerName is always a real name, never undefined/null
+  peerName = name || 'User ' + id;
   document.querySelectorAll('.contact-item').forEach(e=>e.classList.remove('act'));
   const ci=document.getElementById('ci-'+id);
   if(ci)ci.classList.add('act');
@@ -276,7 +282,7 @@ function openChat(id,name){
       <button class="act-btn bk" onclick="closeMobile()" style="display:none">←</button>
       <div class="chat-av">👤</div>
       <div>
-        <div class="chat-name">${name}</div>
+        <div class="chat-name" id="chat-peer-name">${escH(peerName)}</div>
         <div class="chat-sub" id="chat-sub">🟢 இணையத்தில் உள்ளார்</div>
       </div>
       <div class="chat-actions">
@@ -291,7 +297,6 @@ function openChat(id,name){
       <button class="mic-btn" id="mic-btn" onclick="toggleRecord()">🎙</button>
       <button class="send-btn" id="send-btn" onclick="sendMsg()">➤</button>
     </div>`;
-
 
   document.getElementById('sidebar').classList.add('hidden');
   loadHistory();
@@ -327,8 +332,13 @@ function connectWS(){
       if(statEl) statEl.textContent=parseInt(statEl.textContent||0)+1;
     } else if(!isMine){
       unreadMap[d.sender_id]=(unreadMap[d.sender_id]||0)+1;
+      // Update contact name from live WebSocket data if available
+      if(d.sender_name){
+        const c = contacts.find(x => String(x.id) === String(d.sender_id));
+        if(c && (!c.name || c.name.startsWith('User '))) c.name = d.sender_name;
+      }
       renderContacts();
-      showNotif('💬 New message from '+(d.sender_name||'User '+d.sender_id));
+      showNotif('💬 '+(d.sender_name||'User '+d.sender_id)+' புதிய செய்தி அனுப்பியுள்ளார்');
     }
   };
   ws.onerror=()=>showNotif('⚠ WebSocket இணைப்பு பிக்ள்');
@@ -446,6 +456,16 @@ async function loadHistory(){
         while(el.firstChild&&el.firstChild!==tw)el.removeChild(el.firstChild);
         msgs.forEach(m=>appendBubble(m,String(m.sender_id)===String(me.id||2)));
         setCachedMessages(peerId,msgs);
+        // Update peer name from history data if we got a better name
+        const peerMsg = msgs.find(m => String(m.sender_id) === String(peerId));
+        if(peerMsg && peerMsg.sender_name && peerMsg.sender_name !== ('User '+peerId)){
+          peerName = peerMsg.sender_name;
+          const nameEl = document.getElementById('chat-peer-name');
+          if(nameEl) nameEl.textContent = peerName;
+          // Also update the contact in the sidebar
+          const c = contacts.find(x => String(x.id) === String(peerId));
+          if(c) c.name = peerName;
+        }
       }
     }
   }catch(e){}

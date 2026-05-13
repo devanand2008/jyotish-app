@@ -113,6 +113,7 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'Noto San
       </div>
       <div class="sidebar-header-icons">
         <button class="hdr-btn" onclick="location.href=window.jyotishPageUrl('index.html')" title="ஜாதகம் கணக்கிடு">🔮</button>
+        <button class="hdr-btn" onclick="location.href=window.jyotishPageUrl('compatibility.html')" title="Compatibility">Match</button>
         <button class="hdr-btn" onclick="location.href=window.jyotishPageUrl('ai-chat.html')" title="AI ஜோதிடர்">🤖</button>
         <button class="hdr-btn" onclick="logout()" title="வெளியேறு">⎋</button>
       </div>
@@ -180,8 +181,9 @@ function previewMessage(m, fallback){
   return content || (fallback || 'No message yet');
 }
 
-// ── Init user avatar
-if(me.name)document.getElementById('user-name').textContent=me.name;
+// ── Init user avatar — always show a meaningful name
+const myDisplayName = me.name || me.email || 'பயனர்';
+document.getElementById('user-name').textContent = myDisplayName;
 const av=document.getElementById('user-av');
 if(me.picture){const i=document.createElement('img');i.src=me.picture;av.innerHTML='';av.appendChild(i);}
 
@@ -203,16 +205,18 @@ function renderContacts(list){
   const el=document.getElementById('contact-list');
   if(!list.length){el.innerHTML='<div class="empty-state"><div>🔮</div>ஜோதிடர்கள் இல்லை</div>';return;}
   el.innerHTML=list.map(a=>{
-    const av=a.picture?`<img src="${a.picture}" alt="">`:(a.name?a.name[0]:'🔮');
+    const displayName = a.name || ('Astrologer ' + a.id);
+    const av=a.picture?`<img src="${a.picture}" alt="">`:(displayName ? displayName[0] : '🔮');
     const dot=a.available?'online-dot':'offline-dot';
     const badge=a.available?'<span class="avail-badge avail-yes">✅ Available</span>':'<span class="avail-badge avail-no">⛔ Busy</span>';
     const unread=unreadMap[a.id]?`<div class="unread-badge">${unreadMap[a.id]}</div>`:'';
     const last=getCachedMessages(a.id).slice(-1)[0];
     const preview=previewMessage(last,a.specialty||'Vedic Astrologer');
-    return`<div class="contact-item" id="ci-${a.id}" onclick="openChat('${a.id}','${a.name}',${a.available})">
+    // Use data attributes for safe name passing (handles apostrophes, quotes, etc.)
+    return`<div class="contact-item" id="ci-${a.id}" data-uid="${a.id}" data-uname="${escH(displayName)}" data-avail="${a.available}" onclick="openChat(this.dataset.uid, this.dataset.uname, this.dataset.avail==='true')">
       <div class="contact-av">${av}<span class="${dot}"></span></div>
       <div class="contact-info">
-        <div class="contact-name">${a.name}</div>
+        <div class="contact-name">${escH(displayName)}</div>
         <div class="contact-preview">${escH(preview)}</div>
       </div>
       <div class="contact-meta">${badge}${unread}</div>
@@ -227,7 +231,9 @@ function filterContacts(){
 
 // ── Open chat with astrologer
 function openChat(id,name,available){
-  peerId=String(id); peerName=name;
+  peerId=String(id);
+  // Ensure peerName is always a real name, never undefined/null
+  peerName = name || 'Astrologer ' + id;
   document.querySelectorAll('.contact-item').forEach(el=>el.classList.remove('active'));
   const ci=document.getElementById('ci-'+id);
   if(ci)ci.classList.add('active');
@@ -251,7 +257,7 @@ function openChat(id,name,available){
       <button class="back-btn" id="back-btn">←</button>
       <div class="chat-av" id="chat-av">🔮</div>
       <div>
-        <div class="chat-name" id="chat-peer-name">${escH(name)}</div>
+      <div class="chat-name" id="chat-peer-name">${escH(peerName)}</div>
         <div class="chat-status" id="chat-peer-status">
           ${available
             ?'<span class="chat-status-dot"></span> கிடைக்கிறார் · இணையத்தில் உள்ளார்'
@@ -322,7 +328,7 @@ function connectWS(){
     } else if(!isMine){
       unreadMap[d.sender_id]=(unreadMap[d.sender_id]||0)+1;
       renderContacts(allContacts);
-      showNotif('💬 '+(d.sender_name||'ஜோதிடர்')+': '+safeText(d.content).slice(0,40));
+      showNotif('💬 '+(d.sender_name||'ஜோதிடர்')+' புதிய செய்தி அனுப்பியுள்ளார்');
     }
   };
   ws.onerror=()=>showNotif('⚠ WebSocket இணைப்பு பிக்ள்');
@@ -473,6 +479,13 @@ async function loadHistory(){
         while(el.firstChild&&el.firstChild!==tw)el.removeChild(el.firstChild);
         msgs.forEach(m=>appendBubble(m,m.sender_id==(me.id||1)));
         setCachedMessages(peerId,msgs);
+        // Update peer name from history data if we got a better name
+        const peerMsg = msgs.find(m => String(m.sender_id) === String(peerId));
+        if(peerMsg && peerMsg.sender_name && peerMsg.sender_name !== ('User '+peerId)){
+          peerName = peerMsg.sender_name;
+          const nameEl = document.getElementById('chat-peer-name');
+          if(nameEl) nameEl.textContent = peerName;
+        }
       }
     }
   }catch(e){}

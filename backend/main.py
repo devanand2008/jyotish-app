@@ -5,14 +5,16 @@ FastAPI backend with CORS support.
 Run: uvicorn main:app --reload --port 8080
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 from typing import Optional
 import os
+import json
 from datetime import date as dt_date
+from sqlalchemy.orm import Session
 
 from astro_engine import (
     generate_horoscope,
@@ -22,12 +24,12 @@ from astro_engine import (
     tamil_date_from_gregorian,
 )
 
-from database import engine, Base
+from database import engine, Base, get_db
 import models
 import auth
 import chat_router
 import admin_router
-from ads_store import grouped_ads
+from ads_store import grouped_ads, track_ad_event
 
 # Create DB tables
 Base.metadata.create_all(bind=engine)
@@ -40,9 +42,15 @@ app = FastAPI(
     version="3.0.0",
 )
 
+_allowed_origins = [
+    origin.strip()
+    for origin in os.environ.get("ALLOWED_ORIGINS", "*").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins or ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -101,6 +109,11 @@ class PanchangamRequest(BaseModel):
     timezone: float = Field(5.5)
 
 
+class CompatibilityRequest(BaseModel):
+    person1: HoroscopeRequest
+    person2: HoroscopeRequest
+
+
 # ────────────────────────────────
 #  ENDPOINTS
 # ────────────────────────────────
@@ -121,8 +134,39 @@ async def health():
     return {"status": "ok", "service": "Tamil Vedic Jyotish API v3.0", "ephem": "ok"}
 
 
+def _store_horoscope_report(req: HoroscopeRequest, result: dict, db: Session, token: Optional[str] = None):
+    user_id = None
+    if token:
+        try:
+            user_id = auth.get_current_user(token, db).id
+        except Exception:
+            user_id = None
+    try:
+        report = models.AstrologyReport(
+            user_id=user_id,
+            report_type="horoscope",
+            name=req.name,
+            dob=f"{req.year}-{req.month:02d}-{req.day:02d}",
+            place=req.place or "",
+            rasi=(result.get("rasi") or {}).get("ta", ""),
+            nakshatra=(result.get("nakshatra") or {}).get("ta", ""),
+            lagna=(result.get("lagna") or {}).get("ta", ""),
+            summary=(
+                f"Rasi: {(result.get('rasi') or {}).get('ta', '')}; "
+                f"Nakshatra: {(result.get('nakshatra') or {}).get('ta', '')}; "
+                f"Lagna: {(result.get('lagna') or {}).get('ta', '')}"
+            ),
+            payload=json.dumps(result, ensure_ascii=False, default=str)[:200000],
+        )
+        db.add(report)
+        db.commit()
+        result["report_id"] = report.id
+    except Exception:
+        db.rollback()
+
+
 @app.post("/api/horoscope")
-async def horoscope(req: HoroscopeRequest):
+async def horoscope(req: HoroscopeRequest, token: Optional[str] = None, db: Session = Depends(get_db)):
     """
     Generate complete Tamil horoscope chart with sunrise/sunset and day-by-day dasha.
     """
@@ -170,6 +214,8 @@ async def horoscope(req: HoroscopeRequest):
         moon_deg = result["meta"]["moon_deg"]
         result["dasa_days"] = calc_dasa_with_days(dob_str, nak_idx, moon_deg)
 
+        _store_horoscope_report(req, result, db, token=token)
+
         return result
     except Exception as e:
         import traceback
@@ -181,6 +227,116 @@ async def panchangam_post(req: PanchangamRequest):
     """Thirukkhanita Panchangam for a specific date and location."""
     try:
         return calc_panchangam(req.year, req.month, req.day, req.lat, req.lon, req.timezone)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _compatibility_score(h1: dict, h2: dict):
+    score = 50
+    notes = []
+    r1 = h1.get("rasi") or {}
+    r2 = h2.get("rasi") or {}
+    l1 = h1.get("lagna") or {}
+    l2 = h2.get("lagna") or {}
+    n1 = h1.get("nakshatra") or {}
+    n2 = h2.get("nakshatra") or {}
+
+    distance = ((int(r2.get("num") or 1) - int(r1.get("num") or 1)) % 12) + 1
+    if distance in {1, 5, 7, 9, 11}:
+        score += 14
+        notes.append("Moon sign distance is supportive for emotional understanding.")
+    elif distance in {6, 8, 12}:
+        score -= 12
+        notes.append("Moon sign distance needs patience and conscious communication.")
+    else:
+        score += 4
+        notes.append("Moon sign distance is balanced.")
+
+    if r1.get("element") and r1.get("element") == r2.get("element"):
+        score += 10
+        notes.append("Both rasis share the same element, which improves rhythm.")
+
+    if (n1.get("lord_en") or "") == (n2.get("lord_en") or ""):
+        score += 10
+        notes.append("Nakshatra lords match, giving similar instinctive patterns.")
+    elif abs(int(n1.get("idx") or 0) - int(n2.get("idx") or 0)) <= 3:
+        score += 5
+        notes.append("Nakshatras are close enough to build familiarity.")
+
+    if (l1.get("lord_en") or "") == (l2.get("lord_en") or ""):
+        score += 8
+        notes.append("Lagna lords align, supporting shared life direction.")
+
+    score = max(0, min(100, score))
+    verdict = "Excellent" if score >= 80 else "Good" if score >= 65 else "Moderate" if score >= 45 else "Challenging"
+    return {
+        "score": score,
+        "verdict": verdict,
+        "notes": notes,
+        "factors": {
+            "rasi_distance": distance,
+            "person1_rasi": r1.get("ta", ""),
+            "person2_rasi": r2.get("ta", ""),
+            "person1_nakshatra": n1.get("ta", ""),
+            "person2_nakshatra": n2.get("ta", ""),
+            "person1_lagna": l1.get("ta", ""),
+            "person2_lagna": l2.get("ta", ""),
+        },
+    }
+
+
+@app.post("/api/compatibility")
+async def compatibility(req: CompatibilityRequest, db: Session = Depends(get_db)):
+    """Basic compatibility report from two real horoscope calculations."""
+    try:
+        h1 = generate_horoscope(
+            year=req.person1.year, month=req.person1.month, day=req.person1.day,
+            hour=req.person1.hour, minute=req.person1.minute,
+            lat=req.person1.lat, lon=req.person1.lon,
+            timezone_offset=req.person1.timezone,
+        )
+        h2 = generate_horoscope(
+            year=req.person2.year, month=req.person2.month, day=req.person2.day,
+            hour=req.person2.hour, minute=req.person2.minute,
+            lat=req.person2.lat, lon=req.person2.lon,
+            timezone_offset=req.person2.timezone,
+        )
+        match = _compatibility_score(h1, h2)
+        result = {
+            "person1": {
+                "name": req.person1.name,
+                "rasi": h1.get("rasi"),
+                "nakshatra": h1.get("nakshatra"),
+                "lagna": h1.get("lagna"),
+            },
+            "person2": {
+                "name": req.person2.name,
+                "rasi": h2.get("rasi"),
+                "nakshatra": h2.get("nakshatra"),
+                "lagna": h2.get("lagna"),
+            },
+            "compatibility": match,
+            "guidance": [
+                "Use this as a practical compatibility guide, not as a final marriage decision.",
+                "For marriage matching, review full porutham, dosha, dasha timing, family context, and consent.",
+            ],
+        }
+        try:
+            db.add(models.AstrologyReport(
+                report_type="compatibility",
+                name=f"{req.person1.name} + {req.person2.name}",
+                dob=f"{req.person1.year}-{req.person1.month:02d}-{req.person1.day:02d} / {req.person2.year}-{req.person2.month:02d}-{req.person2.day:02d}",
+                place=f"{req.person1.place or ''} / {req.person2.place or ''}",
+                rasi=f"{(h1.get('rasi') or {}).get('ta', '')} / {(h2.get('rasi') or {}).get('ta', '')}",
+                nakshatra=f"{(h1.get('nakshatra') or {}).get('ta', '')} / {(h2.get('nakshatra') or {}).get('ta', '')}",
+                lagna=f"{(h1.get('lagna') or {}).get('ta', '')} / {(h2.get('lagna') or {}).get('ta', '')}",
+                summary=f"Compatibility score: {match['score']} ({match['verdict']})",
+                payload=json.dumps(result, ensure_ascii=False, default=str)[:200000],
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -247,6 +403,20 @@ async def get_active_ads():
         "video_ads": video_ads,
         "ads": all_ads,
     }
+
+
+@app.post("/api/ads/{ad_id}/track")
+async def track_ad(ad_id: str, request: Request, event: str = "impression", page: str = ""):
+    """Track ad impressions and clicks for admin analytics."""
+    tracked = track_ad_event(
+        ad_id,
+        event_type=event,
+        page=page,
+        user_agent=request.headers.get("user-agent", ""),
+    )
+    if not tracked:
+        raise HTTPException(status_code=404, detail="Ad not found")
+    return tracked
 
 @app.get("/api/test")
 async def test_chart():

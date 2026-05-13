@@ -18,9 +18,11 @@ let activeAds = {
   web: [],
   pdf: [],
   banner: [],
+  video: [],
   web_enabled: true,
   pdf_enabled: true,
-  banner_enabled: true
+  banner_enabled: true,
+  video_enabled: true
 };
 
 function adSrc(ad) {
@@ -47,6 +49,9 @@ function normalizeAd(ad, type) {
     src,
     title: ad.title || ad.original_name || ad.filename || 'Advertisement',
     mime_type: ad.mime_type || '',
+    click_url: ad.click_url || '',
+    placement: ad.placement || 'all',
+    target_pages: ad.target_pages || 'all',
     enabled: ad.enabled !== false,
     non_skippable: true,
     created_at: ad.created_at || ''
@@ -102,6 +107,7 @@ async function loadAds() {
   activeAds.web = [];
   activeAds.pdf = [];
   activeAds.banner = [];
+  activeAds.video = [];
 
   try {
     const res = await fetch(ADS_API);
@@ -110,6 +116,7 @@ async function loadAds() {
       activeAds.web = normalizeServerList(data, 'web');
       activeAds.pdf = normalizeServerList(data, 'pdf');
       activeAds.banner = normalizeServerList(data, 'banner');
+      activeAds.video = normalizeServerList(data, 'video');
     }
   } catch (e) {
     // Local fallback is applied below.
@@ -122,9 +129,11 @@ async function loadAds() {
       if (d.web_enabled !== undefined) activeAds.web_enabled = d.web_enabled;
       if (d.pdf_enabled !== undefined) activeAds.pdf_enabled = d.pdf_enabled;
       if (d.banner_enabled !== undefined) activeAds.banner_enabled = d.banner_enabled;
+      if (d.video_enabled !== undefined) activeAds.video_enabled = d.video_enabled;
       activeAds.web = uniqueAds(activeAds.web.concat(normalizeLocalItems(d, 'web')));
       activeAds.pdf = uniqueAds(activeAds.pdf.concat(normalizeLocalItems(d, 'pdf')));
       activeAds.banner = uniqueAds(activeAds.banner.concat(normalizeLocalItems(d, 'banner')));
+      activeAds.video = uniqueAds(activeAds.video.concat(normalizeLocalItems(d, 'video')));
     } catch(e) {}
   }
 
@@ -140,10 +149,11 @@ function getAd(type, index) {
 function renderAds() {
   const bannerEnabled = activeAds.banner_enabled !== false && activeAds.web_enabled !== false;
   const webEnabled = activeAds.web_enabled !== false;
+  const videoEnabled = activeAds.video_enabled !== false && activeAds.web_enabled !== false;
   renderSlot('ad-slot-top', bannerEnabled ? (getAd('banner', 0) || getAd('web', 0)) : null, 'top');
-  renderSlot('ad-slot-mid', webEnabled ? getAd('web', 1) : null, 'mid');
-  renderSlot('ad-slot-bottom', webEnabled ? getAd('web', 2) : null, 'bottom');
-  renderSlot('ad-slot-pj', webEnabled ? getAd('web', 3) : null, 'pj');
+  renderSlot('ad-slot-mid', webEnabled ? (videoEnabled ? (getAd('video', 0) || getAd('web', 1)) : getAd('web', 1)) : null, 'mid');
+  renderSlot('ad-slot-bottom', webEnabled ? (getAd('web', 2) || (videoEnabled ? getAd('video', 1) : null)) : null, 'bottom');
+  renderSlot('ad-slot-pj', webEnabled ? (getAd('web', 3) || (videoEnabled ? getAd('video', 2) : null)) : null, 'pj');
   renderBannerSlot('ad-banner-main', bannerEnabled ? getAd('banner', 0) : null);
 }
 
@@ -155,6 +165,39 @@ function isVideoAd(ad) {
   const src = adSrc(ad) || '';
   const mime = typeof ad === 'object' ? (ad.mime_type || '') : '';
   return /video\//i.test(mime) || /\.(mp4|webm|ogg)(\?|#|$)/i.test(src) || /^data:video\//i.test(src);
+}
+
+function escapeAttr(value) {
+  return String(value || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function trackJyotishAd(adId, eventType, page) {
+  if (!adId || /^data:|^blob:/i.test(adId)) return;
+  const url = `${_ADS_BASE}/api/ads/${encodeURIComponent(adId)}/track?event=${encodeURIComponent(eventType || 'impression')}&page=${encodeURIComponent(page || '')}`;
+  try {
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([], { type: 'application/json' }));
+      return;
+    }
+  } catch(e) {}
+  try { fetch(url, { method: 'POST', keepalive: true }); } catch(e) {}
+}
+
+function wireAdTracking(el, ad, page) {
+  if (!ad || !ad.id) return;
+  if (!/^data:|^blob:/i.test(ad.src || '')) {
+    trackJyotishAd(ad.id, 'impression', page);
+  }
+  if (ad.click_url) {
+    const wrap = el.querySelector('.ad-wrap');
+    if (wrap) {
+      wrap.style.cursor = 'pointer';
+      wrap.addEventListener('click', () => {
+        if (!/^data:|^blob:/i.test(ad.src || '')) trackJyotishAd(ad.id, 'click', page);
+        window.open(ad.click_url, '_blank', 'noopener');
+      }, { once: false });
+    }
+  }
 }
 
 function renderSlot(slotId, ad, type) {
@@ -169,19 +212,21 @@ function renderSlot(slotId, ad, type) {
 
   el.classList.add('show');
   const label = type === 'banner' ? 'Sponsored' : 'Advertisement';
+  const title = escapeAttr(ad.title || 'Advertisement');
   if (isVideoAd(ad)) {
     el.innerHTML = `
-      <div class="ad-wrap" data-non-skippable="true">
+      <div class="ad-wrap" data-non-skippable="true" data-ad-id="${escapeAttr(ad.id)}" title="${title}">
         <span class="ad-label">${label}</span>
         <video autoplay muted loop playsinline class="ad-media"><source src="${src}"></video>
       </div>`;
   } else {
     el.innerHTML = `
-      <div class="ad-wrap" data-non-skippable="true">
+      <div class="ad-wrap" data-non-skippable="true" data-ad-id="${escapeAttr(ad.id)}" title="${title}">
         <span class="ad-label">${label}</span>
         <img src="${src}" class="ad-media" alt="Advertisement" loading="lazy"/>
       </div>`;
   }
+  wireAdTracking(el, ad, type);
 }
 
 function getPdfAdSrc() {
@@ -230,5 +275,6 @@ function removeLocalAd(type) {
 window.renderJyotishAds = renderAds;
 window.reloadJyotishAds = loadAds;
 window.getPdfAdSrc = getPdfAdSrc;
+window.trackJyotishAd = trackJyotishAd;
 
 document.addEventListener('DOMContentLoaded', () => { loadAds(); });

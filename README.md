@@ -39,7 +39,7 @@ JYOTISH 3.0 is a production-ready **Tamil Vedic Astrology web application** that
   |------|--------|
   | **User** | View horoscope, chat with astrologers, AI readings |
   | **Astrologer** | Accept consultations, set availability, chat with users |
-  | **Admin** | Full platform control (reserved for `devanand.s2008@gmail.com`) |
+  | **Admin** | Full platform control (reserved for `devanand2008@gmail.com`) |
 - **JWT Authentication** (7-day tokens) via `python-jose`
 - **Astrologer Approval Flow** — New astrologers await admin approval before going live
 - **Pending Page** — Astrologers see their approval status in real time
@@ -221,7 +221,7 @@ set OLLAMA_MODEL=llama3
 Without any API key, the app uses a built-in smart Tamil rule-based system.
 
 ### Admin Account
-The admin email is locked to: `devanand.s2008@gmail.com`  
+The admin email is locked to: `devanand2008@gmail.com`  
 This account automatically gets Admin role and full access upon sign-in.
 
 ---
@@ -266,4 +266,78 @@ Login (Google OAuth)
 Built with ❤️ for Tamil astrology — traditional wisdom, modern technology.
 
 **Developer:** Devanand S  
-**Contact:** devanand.s2008@gmail.com
+**Contact:** devanand2008@gmail.com
+
+---
+
+## Production Deployment Notes
+
+### Recommended Hosting
+Use **Render paid Web Service (Starter or higher)** for the complete app. This repo is configured so one FastAPI service serves both:
+
+- Backend APIs and WebSockets
+- Frontend HTML/CSS/JS
+- Uploaded ad files from persistent storage
+- SQLite database on a Render persistent disk
+
+Render free web services can spin down when idle, so `render.yaml` uses `plan: starter` to keep the service available continuously.
+
+### Render Setup
+
+1. Push the full repository to GitHub.
+2. In Render, choose **New > Blueprint** and connect the GitHub repository.
+3. Render reads `render.yaml` and creates the `jyotish-astro-app` service.
+4. Set or confirm these environment variables:
+   - `SECRET_KEY`
+   - `GOOGLE_CLIENT_ID`
+   - `ADMIN_EMAIL`
+   - `ALLOWED_ORIGINS`
+5. Add the deployed Render URL to Google OAuth authorized JavaScript origins and redirect URLs.
+6. Open the Render service URL. The backend serves the frontend directly, so the API base is same-origin.
+
+For the exact fields to paste into Render, open:
+
+```text
+RENDER_FORM_VALUES.txt
+```
+
+For the full step-by-step deployment checklist, open:
+
+```text
+RENDER_DEPLOY_STEPS.md
+```
+
+### Mobile Google Login Fix
+
+If mobile login shows `Error 400: redirect_uri_mismatch`, add this exact URL in Google Cloud OAuth **Authorized redirect URIs**:
+
+```text
+https://jyotish-astro-app.onrender.com/google-mobile-callback.html
+```
+
+If your Render service URL is different, replace `jyotish-astro-app.onrender.com` with your actual Render domain.
+
+### Admin Access
+The email in `ADMIN_EMAIL` automatically receives Admin role after Google login. Default:
+
+```text
+devanand2008@gmail.com
+```
+
+### New Production Features
+
+- Database-backed ad metadata with banner, poster, PDF and video ads.
+- Ad scheduling with start/end times.
+- Per-ad enable/disable without deleting files.
+- Ad impression and click tracking.
+- Stored horoscope and compatibility report records.
+- Admin analytics, content management, settings and report dashboard.
+- Compatibility report page at `/compatibility.html`.
+
+### GitHub Push
+
+```bash
+git add .
+git commit -m "Build production astrology app features"
+git push origin main
+```

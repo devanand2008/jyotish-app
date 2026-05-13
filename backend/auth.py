@@ -21,7 +21,7 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
 # ADMIN email — only this email gets Admin role
-ADMIN_EMAIL = "devanand.s2008@gmail.com"
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "devanand2008@gmail.com")
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 

@@ -22,7 +22,7 @@ let ws = null;
 
 // Auth Tokens
 let authToken = localStorage.getItem("auth_token");
-let currentUser = JSON.parse(localStorage.getItem("user_info") || "null");
+let currentUser = JSON.parse(localStorage.getItem("user_data") || localStorage.getItem("user_info") || "null");
 
 function initAuthUI() {
     if (!currentUser) {
@@ -94,7 +94,7 @@ async function openAdminPanel() {
     const overlay = document.createElement("div");
     overlay.id = "admin-panel-overlay";
     overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(8,6,15,0.98);z-index:9999;overflow-y:auto;padding:40px 20px;";
-    
+
     try {
         const res = await fetchWithAuth('/api/admin/astrologers');
         let rows = '';
@@ -127,12 +127,12 @@ async function openAdminPanel() {
             </div>
         `;
         document.body.appendChild(overlay);
-    } catch(e) { alert("Failed to load admin panel"); }
+    } catch (e) { alert("Failed to load admin panel"); }
 }
 
 async function adminAction(id, action) {
     await fetchWithAuth(`/api/admin/astrologers/${id}/${action}`, { method: 'POST' });
-    if(action === 'approve') {
+    if (action === 'approve') {
         showNotification('✅ ஜோதிடர் Approved! அவர்கள் தானாகவே Dashboard-க்கு redirect ஆவார்கள்.');
     } else {
         showNotification('❌ ஜோதிடர் Rejected.');
@@ -141,7 +141,7 @@ async function adminAction(id, action) {
     openAdminPanel();
 }
 
-window.handleGoogleCallback = async function(response) {
+window.handleGoogleCallback = async function (response) {
     const role = document.getElementById('login-role')?.value || 'User';
     try {
         const res = await fetch(`${CHAT_API_BASE}/api/auth/google`, {
@@ -150,12 +150,12 @@ window.handleGoogleCallback = async function(response) {
             body: JSON.stringify({ token: response.credential, role_requested: role })
         });
         const data = await res.json();
-        if(res.ok) {
+        if (res.ok) {
             localStorage.setItem('auth_token', data.access_token);
             localStorage.setItem('user_info', JSON.stringify(data.user));
             window.location.reload();
         } else alert("Login failed: " + data.detail);
-    } catch(e) { console.error(e); alert("Network Error"); }
+    } catch (e) { console.error(e); alert("Network Error"); }
 };
 
 document.addEventListener('DOMContentLoaded', initAuthUI);
@@ -165,11 +165,11 @@ function connectWebSocket() {
     if (!currentUser) return;
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
     if (ws) ws.close();
-    
+
     // Connect to WebSocket server — derive WS URL from CHAT_API_BASE
     const wsUrl = CHAT_API_BASE.replace(/^http/, 'ws') + `/api/chat/ws/${currentUser.id}`;
     ws = new WebSocket(wsUrl);
-    
+
     ws.onopen = () => console.log("WebSocket connected");
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -225,19 +225,19 @@ async function openChat(otherUserId, otherUserName) {
     currentChatUserName = otherUserName;
 
     const overlay = document.getElementById('chat-overlay');
-    const title   = document.getElementById('chat-astro-name');
-    const status  = document.querySelector('.chat-astro-status');
-    
+    const title = document.getElementById('chat-astro-name');
+    const status = document.querySelector('.chat-astro-status');
+
     if (overlay) overlay.style.display = 'flex';
-    if (title)   title.textContent = '💬 ' + otherUserName;
-    if (status)  status.innerHTML = otherUserId === 'AI' ? '✨ Instant AI Responses' : '🟢 Online · Private Chat · No WhatsApp shared';
+    if (title) title.textContent = '💬 ' + otherUserName;
+    if (status) status.innerHTML = otherUserId === 'AI' ? '✨ Instant AI Responses' : '🟢 Online · Private Chat · No WhatsApp shared';
 
     // Load History
     if (otherUserId === 'AI') {
         let msgs = [];
         try {
             msgs = JSON.parse(localStorage.getItem('ai_chat_history') || '[]');
-        } catch(e) {
+        } catch (e) {
             console.error(e);
             localStorage.setItem('ai_chat_history', '[]');
         }
@@ -246,7 +246,7 @@ async function openChat(otherUserId, otherUserName) {
         const msgs = await fetchWithAuth(`/api/chat/history/${otherUserId}?token=${authToken}`);
         renderMessages(msgs || []);
     }
-    
+
     const inp = document.getElementById('chat-input');
     if (inp) inp.focus();
 }
@@ -264,7 +264,7 @@ function closeChat() {
 
 /* ── Render Messages ── */
 function renderMessages(msgs) {
-    const box  = document.getElementById('chat-messages');
+    const box = document.getElementById('chat-messages');
     if (!box) return;
 
     if (!msgs.length) {
@@ -282,9 +282,9 @@ function renderMessages(msgs) {
 }
 
 function appendMessage(m, scroll = true) {
-    const box  = document.getElementById('chat-messages');
+    const box = document.getElementById('chat-messages');
     if (!box) return;
-    
+
     // Remove empty state message if it's the first message
     if (box.innerHTML.includes("Start a secure private conversation")) {
         box.innerHTML = '';
@@ -309,19 +309,19 @@ function appendMessage(m, scroll = true) {
         </div>
         <div class="msg-time">${dateStr} · ${time}</div>
     </div>`;
-    
+
     box.insertAdjacentHTML('beforeend', html);
     if (scroll) box.scrollTop = box.scrollHeight;
 }
 
 function escHtml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 /* ── Send Text Message ── */
 async function sendChatMessage() {
     if (!currentChatUserId) return;
-    
+
     const inp = document.getElementById('chat-input');
     const text = (inp?.value || '').trim();
     if (!text) return;
@@ -329,12 +329,12 @@ async function sendChatMessage() {
     if (currentChatUserId === 'AI') {
         const msg = { sender_id: currentUser.id, receiver_id: 'AI', content: text, type: "text", timestamp: new Date().toISOString() };
         appendMessage(msg);
-        
+
         let history = JSON.parse(localStorage.getItem('ai_chat_history') || '[]');
         history.push(msg);
-        
+
         inp.value = '';
-        
+
         // Fetch AI Response from Backend
         try {
             let astroData = null;
@@ -348,14 +348,14 @@ async function sendChatMessage() {
             const res = await fetch(aiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     message: text,
                     astro_data: astroData
                 })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || `API ${res.status}`);
-            
+
             const aiMsg = { sender_id: 'AI', receiver_id: currentUser.id, content: data.reply, type: "text", timestamp: new Date().toISOString() };
             appendMessage(aiMsg);
             history.push(aiMsg);
@@ -388,7 +388,7 @@ async function sendChatMessage() {
         content: text,
         type: "text"
     };
-    
+
     ws.send(JSON.stringify(payload));
 }
 
@@ -491,7 +491,7 @@ async function loadAstrologers() {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
         const astros = await res.json();
-        
+
         let aiBotHtml = `
             <div class="chat-astro-btn" onclick="startPublicVideoCall()" style="border-color: var(--gold); background: linear-gradient(135deg, rgba(200, 168, 75, 0.1), rgba(232, 201, 106, 0.1)); border-radius: 12px; margin-bottom: 12px;">
                 <div class="cab-avatar" style="background: linear-gradient(135deg, var(--gold), var(--gold2)); color: black;">📞</div>
@@ -535,15 +535,15 @@ async function loadAstrologers() {
             `;
         });
         astroCards.innerHTML = html;
-        
+
         // Update the screen titles to reflect the new system
         const sAstrologers = document.getElementById('s-astrologers');
-        if(sAstrologers) {
+        if (sAstrologers) {
             const h = sAstrologers.querySelector('.sec-s');
             if (h) h.textContent = "Secure Private Chat Consultation";
         }
 
-    } catch(e) {
+    } catch (e) {
         console.error("Failed to load astrologers", e);
     }
 }

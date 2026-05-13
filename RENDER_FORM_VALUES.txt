@@ -1,0 +1,72 @@
+JYOTISH 3.0 - Render form values
+=================================
+
+Recommended setup:
+Use New + > Blueprint, connect your GitHub repository, and let Render read render.yaml.
+This creates both services:
+1. jyotish-astro-app
+2. jyotish-video-signaling
+
+GitHub account / owner:
+Use the GitHub account connected to Render for devanand2008@gmail.com.
+
+Blueprint page:
+Repository: your jyotish app GitHub repository
+Branch: main
+Blueprint file path: render.yaml
+Blueprint name: jyotish-astro-app
+
+Main service values if creating manually:
+Name: jyotish-astro-app
+Language / Runtime: Python 3
+Region: Singapore or Oregon
+Branch: main
+Root Directory: backend
+Build Command: pip install -r requirements.txt
+Start Command: uvicorn main:app --host 0.0.0.0 --port $PORT
+Instance Type: Starter
+Health Check Path: /health
+
+Main service environment variables:
+SECRET_KEY: click Generate or paste a long random secret
+GOOGLE_CLIENT_ID: 1055510399803-bv8vphrhlam8cn5uljii5cs8ghubcuvl.apps.googleusercontent.com
+ADMIN_EMAIL: devanand2008@gmail.com
+ALLOWED_ORIGINS: *
+PYTHON_VERSION: 3.11.0
+
+Main service persistent disk:
+Name: astro-data
+Mount Path: /opt/render/project/src/data
+Size: 1 GB
+
+Video service values if creating manually:
+Name: jyotish-video-signaling
+Language / Runtime: Node
+Region: same as main service
+Branch: main
+Root Directory: backend-video
+Build Command: npm ci
+Start Command: npm start
+Instance Type: Starter
+Health Check Path: /health
+
+Google Cloud OAuth values after Render deploy:
+Authorized JavaScript origins:
+http://localhost:8080
+https://jyotish-astro-app.onrender.com
+
+Authorized redirect URIs:
+https://jyotish-astro-app.onrender.com/google-mobile-callback.html
+
+Important:
+If Render gives a different service URL, replace jyotish-astro-app.onrender.com with your real Render URL everywhere above.
+
+If Google still shows redirect_uri_mismatch:
+Open error details on that Google page, copy the exact redirect_uri shown there, and add that exact full URL to Authorized redirect URIs.
+For phone login, test with the Render HTTPS URL, not a local LAN IP address.
+
+Do not add private IP URLs such as:
+http://10.60.238.176:8080/login.html
+http://192.168.1.5:8080/login.html
+
+Google Cloud rejects these because OAuth redirect URIs need a public domain such as onrender.com, ngrok-free.app, trycloudflare.com, .com, .org, etc.

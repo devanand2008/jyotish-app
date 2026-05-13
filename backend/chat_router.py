@@ -141,12 +141,25 @@ def get_chat_history(other_user_id: int, token: str, db: Session = Depends(get_d
         ((models.Message.sender_id == user.id) & (models.Message.receiver_id == other_user_id)) |
         ((models.Message.sender_id == other_user_id) & (models.Message.receiver_id == user.id))
     ).order_by(models.Message.timestamp.asc()).all()
-    
+
+    # Pre-fetch sender/receiver names for the conversation
+    user_ids = set()
+    for m in messages:
+        user_ids.add(m.sender_id)
+        user_ids.add(m.receiver_id)
+    users_map = {}
+    if user_ids:
+        users = db.query(models.User).filter(models.User.id.in_(user_ids)).all()
+        for u in users:
+            users_map[u.id] = u.name or u.email or f"User {u.id}"
+
     return [
         {
             "id": m.id,
             "sender_id": m.sender_id,
+            "sender_name": users_map.get(m.sender_id, f"User {m.sender_id}"),
             "receiver_id": m.receiver_id,
+            "receiver_name": users_map.get(m.receiver_id, f"User {m.receiver_id}"),
             "content": m.content,
             "type": m.msg_type,
             "timestamp": m.timestamp
@@ -373,4 +386,13 @@ def get_contacts(token: str, db: Session = Depends(get_db)):
             contact_ids.add(m.receiver_id)
             
     contacts = db.query(models.User).filter(models.User.id.in_(contact_ids)).all()
-    return [{"id": c.id, "name": c.name, "picture": c.picture, "role": c.role} for c in contacts]
+    return [
+        {
+            "id": c.id,
+            "name": c.name or c.email or f"User {c.id}",
+            "email": c.email or "",
+            "picture": c.picture or "",
+            "role": c.role or "User",
+        }
+        for c in contacts
+    ]
