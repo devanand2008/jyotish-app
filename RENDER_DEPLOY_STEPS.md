@@ -48,6 +48,42 @@ jyotish-astro-app
 jyotish-video-signaling
 ```
 
+If you create the Python service manually, use these exact values:
+
+```text
+Root Directory: leave blank
+Build Command: pip install -r backend/requirements.txt
+Start Command: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+Health Check Path: /health
+```
+
+If Render shows this error:
+
+```text
+ERROR: Could not open requirements file: [Errno 2] No such file or directory: 'requirements.txt'
+```
+
+it means Render is building from the repo root while your old command was looking for `requirements.txt` in the wrong folder. Use:
+
+```text
+pip install -r backend/requirements.txt
+```
+
+not:
+
+```text
+pip install -r requirements.txt
+```
+
+For the video service, use:
+
+```text
+Root Directory: leave blank
+Build Command: cd backend-video && npm ci
+Start Command: cd backend-video && npm start
+Health Check Path: /health
+```
+
 ## 4. Google Cloud OAuth
 
 Open Google Cloud Console:
